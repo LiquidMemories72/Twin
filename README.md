@@ -1,59 +1,236 @@
 # Yann LeCun Digital Twin
 
-A Retrieval-Augmented Generation (RAG) based digital twin of AI pioneer Yann LeCun. The application allows users to converse with a virtual representation of Yann LeCun, which provides answers grounded in his research papers, interviews, talks, and transcripts. 
+A Retrieval-Augmented Generation (RAG) system that simulates how Yann LeCun would answer questions using his published papers, interviews, talks, and transcripts.
+
+The project combines semantic retrieval, cross-encoder reranking, conversational memory, and Gemini 2.5 Flash to create a grounded conversational digital twin.
+
+---
 
 ## Features
 
-- **Conversational Interface:** Built with [Streamlit](https://streamlit.io/), facilitating a chat-like experience.
-- **RAG Architecture:** Uses Qdrant vector database for retrieving relevant papers and transcripts.
-- **Advanced Retrieval:** Implements basic retrieval via `BAAI/bge-small-en-v1.5` embeddings followed by reranking with `BAAI/bge-reranker-base`.
-- **Generative AI:** Powered by Google's `gemini-2.5-flash` model, configured to adopt Yann LeCun's technical style, perspectives, and principles.
-- **Source Transparency:** Highlights retrieval metrics, scores, and full context sources used to answer each query.
+* Conversational chat interface built with Streamlit
+* Retrieval-Augmented Generation (RAG)
+* Qdrant Cloud vector database
+* BGE-small dense embeddings
+* BGE Cross-Encoder reranking
+* Multi-turn conversation memory
+* Source attribution for every answer
+* Retrieval debugging panel
+* Timeline-aware context using document metadata
+* Grounded responses based on Yann LeCun's published work and public statements
 
-## Project Structure
+---
 
-- `Project/`: Contains the main application code (e.g., `app2.py`).
-- `scripts/`: Contains scripts for downloading, embedding, chunking, and managing the AI context data (papers, transcripts).
-- `data/`: Local storage for papers, JSON chunks, and transcripts (ignored by default in version control).
-- `qdrant_db/`: Vector database storage (ignored by default in version control).
+## Architecture
 
-## Setup & Installation
+```text
+User Question
+      ↓
+BGE-small-en-v1.5 Embedding
+      ↓
+Qdrant Vector Search (Top 40)
+      ↓
+BGE-reranker-base Cross Encoder
+      ↓
+Top 10 Retrieved Chunks
+      ↓
+Prompt Construction
+      ↓
+Gemini 2.5 Flash
+      ↓
+Answer + Sources
+```
 
-### 1. Prerequisites 
+---
 
-Make sure you have Python installed and create a virtual environment:
+## Dataset
+
+The knowledge base contains:
+
+* Yann LeCun research papers
+* Interview transcripts
+* Conference talks
+* Public discussions and podcasts
+
+Each chunk is stored with metadata:
+
+```json
+{
+  "text": "...",
+  "title": "...",
+  "source_type": "paper",
+  "year": 2024
+}
+```
+
+This metadata is injected into the prompt so the model can reason about chronology, source type, and evolving viewpoints.
+
+---
+
+## Retrieval Pipeline
+
+### Stage 1: Dense Retrieval
+
+**Embedding Model**
+
+```text
+BAAI/bge-small-en-v1.5
+```
+
+The user query is converted into a normalized dense vector and searched against the Qdrant collection.
+
+Top 40 candidates are retrieved.
+
+### Stage 2: Cross-Encoder Reranking
+
+**Reranker**
+
+```text
+BAAI/bge-reranker-base
+```
+
+Each retrieved chunk is paired with the user query and scored by a cross-encoder.
+
+The top 10 highest-scoring chunks are selected for final context construction.
+
+This significantly improves retrieval precision compared to pure vector search.
+
+---
+
+## Persona Design
+
+The system is designed to reflect recurring themes in Yann LeCun's work:
+
+* Self-supervised learning
+* World models
+* Predictive representations
+* Reasoning and planning
+* Scientific skepticism
+* Limitations of purely autoregressive language models
+
+The assistant is instructed to:
+
+* Ground answers in retrieved sources
+* Distinguish between evidence and inference
+* Avoid hallucinating facts or quotes
+* Remain concise and technical
+* Explain concepts using Yann's documented reasoning style
+
+---
+
+## Memory
+
+The system maintains short-term conversational memory using Streamlit session state.
+
+The last six conversation turns are included in every prompt to support multi-turn discussions and follow-up questions.
+
+---
+
+## Retrieval Debug Panel
+
+The application includes a debugging interface that displays:
+
+* Number of papers retrieved
+* Number of transcripts retrieved
+* Reranker scores
+* Vector similarity scores
+* Source metadata
+* Full retrieved chunk text
+* Full context sent to Gemini
+
+This helps evaluate retrieval quality and answer grounding.
+
+---
+
+## Technologies Used
+
+| Component              | Technology             |
+| ---------------------- | ---------------------- |
+| Frontend               | Streamlit              |
+| LLM                    | Gemini 2.5 Flash       |
+| Embeddings             | BAAI/bge-small-en-v1.5 |
+| Reranker               | BAAI/bge-reranker-base |
+| Vector Database        | Qdrant Cloud           |
+| Environment Management | python-dotenv          |
+
+---
+
+## Installation
+
+Clone the repository:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+git clone <repository-url>
+cd yann-lecun-digital-twin
 ```
 
-Install the dependencies:
+Install dependencies:
 
 ```bash
-pip install streamlit qdrant-client sentence-transformers python-dotenv google-generativeai
+pip install -r requirements.txt
 ```
 
-### 2. Environment Variables
+Create a `.env` file:
 
-Create a `.env` file either in the root directory or inside the `Project/` folder with the following variables:
+```env
+GEMINI_API_KEY=<your-key>
 
-```ini
-GEMINI_API_KEY=your_google_gemini_api_key
-QDRANT_URL=your_qdrant_cluster_url
-QDRANT_API_KEY=your_qdrant_api_key
+QDRANT_URL=https://f8f50026-5a88-4fa6-b0f6-08b72729a789.australia-southeast1-0.gcp.cloud.qdrant.io
+
+QDRANT_API_KEY=<provided-qdrant-api-key>
 ```
 
-### 3. Data Processing (Optional)
-
-If starting from scratch without an existing `qdrant_db`, you will need to run the data collection, chunking, and embedding scripts located in the `scripts/` directory to populate the vector database with Yann LeCun's content.
-
-### 4. Running the Application
-
-To start the Streamlit application, run:
+Run the application:
 
 ```bash
-streamlit run Project/app2.py
+streamlit run app.py
 ```
 
-The application will open in your browser, where you can begin asking questions!
+---
+
+## Qdrant Configuration
+
+**Collection Name**
+
+```text
+Twin
+```
+
+**Evaluation Qdrant URL**
+
+```text
+<INSERT_QDRANT_URL_HERE>
+```
+
+**Evaluation Qdrant API Key**
+
+```text
+<INSERT_EVALUATION_API_KEY_HERE>
+```
+
+> Note: Use the evaluation credentials provided with the submission package. Do not commit credentials to GitHub.
+
+---
+
+
+
+## Future Improvements
+
+* Metadata-aware retrieval filters
+* Timeline-specific search
+* Reflection-based answer verification
+* LangGraph orchestration
+* Hybrid lexical + vector retrieval
+* Long-term memory summarization
+
+---
+
+## Author
+
+Built as a learning project exploring:
+
+* Retrieval-Augmented Generation (RAG)
+* Embeddings
+* Vector Databases
+* Conversational AI
+* Digital Twin Systems
