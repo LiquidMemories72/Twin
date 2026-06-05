@@ -247,10 +247,62 @@ You are Yann LeCun
         prompt
     )
 
+    initial_answer = response.text
+
+    verifier_prompt = f"""
+You are a Hallucination Verifier for a Retrieval-Augmented Generation (RAG) system simulating Yann LeCun.
+Your task is to analyze the generated answer against the retrieved context to verify if the answer contains any hallucinations, factual errors, or statements unsupported by the context.
+
+Retrieved Context:
+{context}
+
+User Question:
+{question}
+
+Generated Answer:
+{initial_answer}
+
+Analyze the Generated Answer. Follow these steps:
+1. Identify any claims, facts, papers, quotes, or opinions in the Generated Answer that are NOT supported by the Retrieved Context or contradict it. Note that the Generated Answer should not invent papers, experiments, quotes, or opinions.
+2. Determine if the Generated Answer contains any hallucinations (i.e. information not grounded in the Retrieved Context).
+3. If there are hallucinations or unsupported statements, rewrite the Generated Answer to correct or remove them. The rewritten answer must strictly follow the original guidelines:
+   - Maintain the persona of Yann LeCun (concise, technical, direct, first-person when appropriate).
+   - Do NOT invent papers, experiments, quotes, or opinions.
+   - Keep the answer under 200 words.
+4. If the Generated Answer is fully grounded in the retrieved context and has no hallucinations, output the exact original Generated Answer.
+
+Respond with a JSON object containing the following keys:
+- "is_hallucination": boolean (true if any hallucination or unsupported claim was found, false otherwise)
+- "explanation": string (brief explanation of what was hallucinated, or why it is clean)
+- "final_answer": string (the corrected/rewritten answer, or the original answer if no hallucinations were found)
+"""
+
+    try:
+        verification_response = gemini.generate_content(
+            verifier_prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        import json
+        result = json.loads(verification_response.text)
+        is_hallucination = result.get("is_hallucination", False)
+        explanation = result.get("explanation", "")
+        final_answer = result.get("final_answer", initial_answer)
+    except Exception as e:
+        is_hallucination = False
+        explanation = f"Error during verification: {str(e)}"
+        final_answer = initial_answer
+
+    hallucination_info = {
+        "is_hallucination": is_hallucination,
+        "explanation": explanation,
+        "original_answer": initial_answer
+    }
+
     return (
-        response.text,
+        final_answer,
         points,
-        reranked
+        reranked,
+        hallucination_info
     )
 
 
@@ -266,6 +318,14 @@ for message in st.session_state.messages:
 
                 for source in message["sources"]:
                     st.write(source)
+
+        if "hallucination_info" in message:
+            info = message["hallucination_info"]
+            if info.get("is_hallucination"):
+                with st.expander("⚠️ Hallucination Corrected"):
+                    st.markdown(f"**Explanation:** {info.get('explanation')}")
+                    st.markdown("**Original Response:**")
+                    st.write(info.get("original_answer"))
 
 
 
@@ -298,7 +358,7 @@ if question:
 
     with st.spinner("Thinking..."):
 
-        answer, points, reranked = answer_question(
+        answer, points, reranked, hallucination_info = answer_question(
                     question,
                     history
                 )
@@ -307,6 +367,20 @@ if question:
 # -----------------------------
 
     with st.sidebar:
+
+        st.header("Hallucination Check")
+        if hallucination_info["is_hallucination"]:
+            st.warning("⚠️ Hallucination Detected & Corrected!")
+            with st.expander("Verification Details"):
+                st.markdown(f"**Explanation:** {hallucination_info['explanation']}")
+                st.markdown("**Original Response:**")
+                st.write(hallucination_info["original_answer"])
+        else:
+            st.success("✅ No Hallucination Detected")
+            with st.expander("Verification Details"):
+                st.markdown(f"**Explanation:** {hallucination_info['explanation']}")
+
+        st.divider()
 
         st.header("Retrieval Debug")
 
@@ -402,12 +476,19 @@ if question:
             for source in sources:
                 st.write(source)
 
+        if hallucination_info.get("is_hallucination"):
+            with st.expander("⚠️ Hallucination Corrected"):
+                st.markdown(f"**Explanation:** {hallucination_info.get('explanation')}")
+                st.markdown("**Original Response:**")
+                st.write(hallucination_info.get("original_answer"))
+
  
 
     st.session_state.messages.append(
         {
             "role": "assistant",
             "content": answer,
-            "sources": sources
+            "sources": sources,
+            "hallucination_info": hallucination_info
         }
     )
