@@ -18,6 +18,7 @@ The project combines semantic retrieval, cross-encoder reranking, conversational
 * Retrieval debugging panel
 * Timeline-aware context using document metadata
 * Grounded responses based on Yann LeCun's published work and public statements
+* **Reflection-based Hallucination Verification**: Evaluates the generated answer against the retrieved context for hallucinations in exactly 1 iteration, correcting and explaining any discrepancies or unsupported claims.
 
 ---
 
@@ -36,9 +37,11 @@ Top 10 Retrieved Chunks
       ↓
 Prompt Construction
       ↓
-Gemini 2.5 Flash
+Gemini 2.5 Flash (Initial Answer)
       ↓
-Answer + Sources
+Gemini 2.5 Flash (Hallucination Verifier Agent)
+      ↓
+Final Grounded Answer + Sources
 ```
 
 ---
@@ -199,26 +202,23 @@ Twin
 **Evaluation Qdrant URL**
 
 ```text
-<INSERT_QDRANT_URL_HERE>
+https://f8f50026-5a88-4fa6-b0f6-08b72729a789.australia-southeast1-0.gcp.cloud.qdrant.io
 ```
 
 **Evaluation Qdrant API Key**
 
 ```text
-<INSERT_EVALUATION_API_KEY_HERE>
+
 ```
 
 > Note: Use the evaluation credentials provided with the submission package. Do not commit credentials to GitHub.
 
 ---
 
-
-
 ## Future Improvements
 
 * Metadata-aware retrieval filters
 * Timeline-specific search
-* Reflection-based answer verification
 * LangGraph orchestration
 * Hybrid lexical + vector retrieval
 * Long-term memory summarization
